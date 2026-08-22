@@ -98,7 +98,8 @@ def load_pipeline_components():
     stt_client = SarvamSTTClient()
     generator = GroqGenerator()
     
-    guardrails = GuardrailsEngine(embedding_model=manager.embedding_model)
+    guardrails = GuardrailsEngine(index_manager=manager)
+    guardrails.bind_index_manager(manager)
     
     harness = PipelineHarness(
         retriever=retriever,

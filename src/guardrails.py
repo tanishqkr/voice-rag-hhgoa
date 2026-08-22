@@ -30,17 +30,23 @@ class GuardrailsEngine:
     def __init__(
         self,
         embedding_model=None,
-        input_cos_threshold: float = 0.35,
-        retrieval_conf_threshold: float = 0.025,
+        index_manager=None,
+        input_cos_threshold: float = 0.520,
+        retrieval_conf_threshold: float = 0.015,
         groundedness_sim_threshold: float = 0.40
     ):
         self.embedding_model = embedding_model
+        self.index_manager = index_manager
         self.input_cos_threshold = input_cos_threshold
         self.retrieval_conf_threshold = retrieval_conf_threshold
         self.groundedness_sim_threshold = groundedness_sim_threshold
         
+        self.corpus_embs: Dict[str, np.ndarray] = {}
+        
         # Load empirical thresholds if present
         self.load_config()
+        if index_manager:
+            self.bind_index_manager(index_manager)
 
     def load_config(self, config_path: Path = CONFIG_PATH):
         if config_path.exists():
@@ -53,8 +59,17 @@ class GuardrailsEngine:
             except Exception as e:
                 pass
 
+    def bind_index_manager(self, index_manager):
+        """Pre-computes corpus sample embeddings per language to mirror calibration evaluation."""
+        self.index_manager = index_manager
+        if index_manager and index_manager.indices and index_manager.embedding_model:
+            self.embedding_model = index_manager.embedding_model
+            for lang, lang_idx in index_manager.indices.items():
+                sample_texts = [p["text"] for p in lang_idx.passages[:300]]
+                self.corpus_embs[lang] = self.embedding_model.encode(sample_texts, normalize_embeddings=True)
+
     def check_input_guardrail(self, query_text: str, language: str = "hi") -> GuardrailVerdict:
-        """Input Guardrail: Keyword safety check & Domain semantic relevance."""
+        """Input Guardrail: Keyword safety check & Corpus domain semantic relevance."""
         # 1. Keyword Blocklist Check
         query_lower = query_text.lower()
         for kw in UNSAFE_KEYWORDS:
@@ -67,24 +82,24 @@ class GuardrailsEngine:
                     reason=f"Unsafe keyword detected: '{kw}'"
                 )
 
-        # 2. Embedding Cosine Similarity Domain Check
-        if self.embedding_model:
-            sample_in_domain = "कॉर्पोरेशन या कंपनी क्या है?" if language == "hi" else "What is a corporation or business entity?"
-            embeddings = self.embedding_model.encode([query_text, sample_in_domain], normalize_embeddings=True)
-            cos_sim = float(np.dot(embeddings[0], embeddings[1]))
-            
-            if cos_sim < self.input_cos_threshold:
+        # 2. Embedding Cosine Similarity Domain Check (against corpus passage embeddings)
+        if self.embedding_model and language in self.corpus_embs:
+            q_emb = self.embedding_model.encode([query_text], normalize_embeddings=True)[0]
+            sims = np.dot(self.corpus_embs[language], q_emb)
+            max_sim = float(np.max(sims))
+
+            if max_sim < self.input_cos_threshold:
                 return GuardrailVerdict(
                     passed=False,
                     check_type="input_safety",
-                    score=cos_sim,
+                    score=max_sim,
                     threshold=self.input_cos_threshold,
-                    reason=f"Off-topic query (semantic similarity {cos_sim:.3f} < threshold {self.input_cos_threshold:.3f})"
+                    reason=f"Off-topic query (semantic similarity {max_sim:.3f} < threshold {self.input_cos_threshold:.3f})"
                 )
             return GuardrailVerdict(
                 passed=True,
                 check_type="input_safety",
-                score=cos_sim,
+                score=max_sim,
                 threshold=self.input_cos_threshold,
                 reason="Query passed safety & domain relevance checks."
             )
@@ -94,7 +109,7 @@ class GuardrailsEngine:
             check_type="input_safety",
             score=1.0,
             threshold=self.input_cos_threshold,
-            reason="Input safety passed (no embedding model bound)."
+            reason="Input safety passed (no corpus embeddings bound)."
         )
 
     def check_retrieval_confidence(self, top_rrf_score: float) -> GuardrailVerdict:
