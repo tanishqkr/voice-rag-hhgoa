@@ -91,6 +91,9 @@ def load_pipeline_components():
     if not manager.load_indices():
         manager.build_all_indices()
     
+    # Warmup embedding model on cache load
+    manager.embedding_model.encode(["warmup query"], normalize_embeddings=True)
+    
     retriever = HybridRetriever(manager)
     stt_client = SarvamSTTClient()
     generator = GroqGenerator()
@@ -193,10 +196,19 @@ def main():
         st.divider()
         st.markdown("### ⏱️ Per-Stage Latency Breakdown")
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("STT (Sarvam)", f"{pipeline_out.stage_latencies.get('stt_ms', 0):.1f} ms")
-        m2.metric("Retrieval (FAISS+BM25)", f"{pipeline_out.stage_latencies.get('retrieval_ms', 0):.1f} ms", help="Target: < 200 ms")
-        m3.metric("Generation (Groq)", f"{pipeline_out.stage_latencies.get('generation_ms', 0):.1f} ms")
-        m4.metric("Total End-to-End", f"{pipeline_out.stage_latencies.get('total_e2e_ms', 0):.1f} ms")
+        
+        stt_ms = pipeline_out.stage_latencies.get("stt_ms", 0.0)
+        ret_ms = pipeline_out.stage_latencies.get("retrieval_ms", 0.0)
+        gen_ms = pipeline_out.stage_latencies.get("generation_ms", 0.0)
+        total_ms = pipeline_out.stage_latencies.get("total_e2e_ms", 0.0)
+        
+        if total_ms == 0.0:
+            total_ms = stt_ms + ret_ms + gen_ms
+
+        m1.metric("STT (Sarvam)", f"{stt_ms:.1f} ms")
+        m2.metric("Retrieval (FAISS+BM25)", f"{ret_ms:.1f} ms", help="Target: < 200 ms")
+        m3.metric("Generation (Groq)", f"{gen_ms:.1f} ms")
+        m4.metric("Total End-to-End", f"{total_ms:.1f} ms")
 
 if __name__ == "__main__":
     main()
