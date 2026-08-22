@@ -27,6 +27,13 @@ class SarvamSTTClient:
         self.api_key = api_key or os.environ.get("SARVAM_API_KEY")
         self.api_url = "https://api.sarvam.ai/speech-to-text"
 
+    def _get_active_api_key(self) -> str:
+        key = self.api_key or os.environ.get("SARVAM_API_KEY")
+        if not key or key == "your_sarvam_api_key_here":
+            load_dotenv()
+            key = os.environ.get("SARVAM_API_KEY")
+        return key
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=0.5, min=0.5, max=3.0),
@@ -40,12 +47,13 @@ class SarvamSTTClient:
         language_code: str = "unknown"
     ) -> TranscriptionResult:
         """Transcribes audio bytes using Sarvam STT API with retries."""
-        if not self.api_key or self.api_key == "your_sarvam_api_key_here":
-            raise ValueError("SARVAM_API_KEY is not configured.")
+        api_key = self._get_active_api_key()
+        if not api_key or api_key == "your_sarvam_api_key_here":
+            raise ValueError("SARVAM_API_KEY is not configured in .env file.")
 
         t0 = time.time()
         headers = {
-            "api-subscription-key": self.api_key
+            "api-subscription-key": api_key
         }
         files = {
             "file": (file_name, audio_bytes, "audio/wav")
