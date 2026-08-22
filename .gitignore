@@ -1,0 +1,24 @@
+# Markdown files: exclude all except README.md
+*.md
+!README.md
+
+# Environment and secrets
+.env
+.streamlit/secrets.toml
+
+# Python runtime and environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Data files
+data/raw/
+data/processed/
+data/*
+
+# OS generated files
+.DS_Store
