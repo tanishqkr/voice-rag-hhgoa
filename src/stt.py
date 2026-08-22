@@ -7,7 +7,7 @@ and offline fixture mode for network-free testing.
 import os
 import time
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from dotenv import load_dotenv
@@ -20,6 +20,22 @@ class TranscriptionResult(BaseModel):
     confidence: float = 1.0
     stt_latency_ms: float = 0.0
     is_mock: bool = False
+
+def detect_audio_format(audio_bytes: bytes, fallback_name: str = "audio.wav") -> Tuple[str, str]:
+    """Detects MIME type and extension from audio binary header."""
+    if audio_bytes.startswith(b'\x1a\x45\xdf\xa3'):
+        return "audio/webm", "audio.webm"
+    elif audio_bytes.startswith(b'OggS'):
+        return "audio/ogg", "audio.ogg"
+    elif audio_bytes.startswith(b'RIFF'):
+        return "audio/wav", "audio.wav"
+    elif audio_bytes.startswith(b'ID3') or audio_bytes.startswith(b'\xff\xfb') or audio_bytes.startswith(b'\xff\xf2'):
+        return "audio/mpeg", "audio.mp3"
+    elif audio_bytes.startswith(b'ftyp'):
+        return "audio/mp4", "audio.m4a"
+    else:
+        ext = fallback_name.split(".")[-1] if "." in fallback_name else "wav"
+        return f"audio/{ext}", fallback_name
 
 class SarvamSTTClient:
     def __init__(self, api_key: Optional[str] = None):
@@ -52,11 +68,24 @@ class SarvamSTTClient:
             raise ValueError("SARVAM_API_KEY is not configured in .env file.")
 
         t0 = time.time()
+        
+        # Guard against zero-length or ultra-short audio recordings
+        if not audio_bytes or len(audio_bytes) < 500:
+            return TranscriptionResult(
+                text="[Short or empty recording]",
+                detected_language="hi",
+                confidence=0.0,
+                stt_latency_ms=0.1,
+                is_mock=True
+            )
+
+        mime_type, resolved_filename = detect_audio_format(audio_bytes, fallback_name=file_name)
+
         headers = {
             "api-subscription-key": api_key
         }
         files = {
-            "file": (file_name, audio_bytes, "audio/wav")
+            "file": (resolved_filename, audio_bytes, mime_type)
         }
 
         # Map language code to Sarvam format
@@ -74,10 +103,19 @@ class SarvamSTTClient:
 
         response = requests.post(self.api_url, headers=headers, files=files, data=data, timeout=15)
         
-        # Raise clear HTTP error with body context
+        # Handle client errors gracefully without crashing the app
         if response.status_code >= 400:
+            err_msg = response.text
+            if "duration is 0" in err_msg.lower() or "too short" in err_msg.lower():
+                return TranscriptionResult(
+                    text="[Audio clip too short - please speak for at least 1-2 seconds]",
+                    detected_language="hi",
+                    confidence=0.0,
+                    stt_latency_ms=(time.time() - t0) * 1000.0,
+                    is_mock=True
+                )
             raise requests.exceptions.HTTPError(
-                f"Sarvam API Error ({response.status_code}): {response.text}",
+                f"Sarvam STT Error ({response.status_code}): {err_msg}",
                 response=response
             )
 
