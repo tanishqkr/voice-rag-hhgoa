@@ -138,7 +138,10 @@ def main():
         st.subheader("🎤 Speak Your Query")
         audio_value = st.audio_input("Record audio query")
         if audio_value is not None:
-            audio_bytes = audio_value.read()
+            if "last_audio_file" not in st.session_state or st.session_state.last_audio_file != id(audio_value):
+                st.session_state.audio_bytes = audio_value.read()
+                st.session_state.last_audio_file = id(audio_value)
+            audio_bytes = st.session_state.get("audio_bytes")
     else:
         st.subheader("⌨️ Type Your Query")
         text_query = st.text_input("Enter your question in Hindi or English:", placeholder="जैसे: कॉर्पोरेशन क्या है? or What is a corporation?")

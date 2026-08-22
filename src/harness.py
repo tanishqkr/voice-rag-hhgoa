@@ -5,6 +5,7 @@ Provides Pydantic boundary contracts, latency logging, and fixture mode.
 """
 
 import time
+import uuid
 import logging
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field
@@ -21,12 +22,12 @@ logger = logging.getLogger("voice_rag_harness")
 def log_stage_latency(stage_name: str):
     """Decorator to log structured JSON timing events per pipeline stage."""
     def decorator(func):
-        def wrapper(*args, **kwargs):
+        def wrapper(self, *args, **kwargs):
             t0 = time.time()
             status = "SUCCESS"
             error_msg = None
             try:
-                result = func(*args, **kwargs)
+                result = func(self, *args, **kwargs)
                 return result
             except Exception as e:
                 status = "FAILED"
@@ -35,6 +36,7 @@ def log_stage_latency(stage_name: str):
             finally:
                 latency_ms = (time.time() - t0) * 1000.0
                 event = {
+                    "run_id": getattr(self, "current_run_id", "unknown"),
                     "stage": stage_name,
                     "latency_ms": round(latency_ms, 2),
                     "status": status
@@ -48,6 +50,7 @@ def log_stage_latency(stage_name: str):
 class PipelineOutput(BaseModel):
     query_text: str
     detected_language: str
+    run_id: str = "unknown"
     transcription: Optional[TranscriptionResult] = None
     retrieval: Optional[RetrievalResult] = None
     generation: Optional[GenerationResult] = None
@@ -70,6 +73,7 @@ class PipelineHarness:
         self.generator = generator or GroqGenerator()
         self.guardrails_engine = guardrails_engine
         self.use_fixtures = use_fixtures
+        self.current_run_id = "unknown"
 
     def bind_guardrails(self, guardrails_engine: GuardrailsEngine):
         """Binds an empirically calibrated GuardrailsEngine to the pipeline."""
@@ -108,6 +112,9 @@ class PipelineHarness:
     ) -> PipelineOutput:
         """Executes full end-to-end Voice RAG pipeline with stage logging and guardrail checkpoints."""
         t_e2e_0 = time.time()
+        self.current_run_id = uuid.uuid4().hex[:8]
+        logger.info({"event": {"run_id": self.current_run_id, "stage": "pipeline_start"}})
+
         stage_latencies = {}
 
         # 1. Speech-to-Text Stage
@@ -122,6 +129,7 @@ class PipelineHarness:
         language = transcription.detected_language
 
         output = PipelineOutput(
+            run_id=self.current_run_id,
             query_text=query_text,
             detected_language=language,
             transcription=transcription
