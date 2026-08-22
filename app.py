@@ -10,6 +10,9 @@ import os
 import time
 import streamlit as st
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from src.index_build import MultilingualIndexManager
 from src.retrieval import HybridRetriever

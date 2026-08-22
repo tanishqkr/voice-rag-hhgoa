@@ -10,6 +10,9 @@ import requests
 from typing import Optional, Dict, Any
 from pydantic import BaseModel, Field
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from dotenv import load_dotenv
+
+load_dotenv()
 
 class TranscriptionResult(BaseModel):
     text: str
@@ -20,6 +23,7 @@ class TranscriptionResult(BaseModel):
 
 class SarvamSTTClient:
     def __init__(self, api_key: Optional[str] = None):
+        load_dotenv()
         self.api_key = api_key or os.environ.get("SARVAM_API_KEY")
         self.api_url = "https://api.sarvam.ai/speech-to-text"
 
