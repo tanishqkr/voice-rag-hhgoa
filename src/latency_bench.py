@@ -158,13 +158,9 @@ def run_benchmark():
             rem_str = f" | RemReqs: {rem_reqs}" if rem_reqs is not None else ""
             print(f"  [{idx:02d}/{len(queries_to_run)}] ({lang.upper()}) Retrieval: {record['retrieval_ms']}ms | Gen: {record['generation_ms']}ms | E2E: {record['total_e2e_ms']}ms{rem_str}{refusal_flag}")
 
-            # Pro-active rate limit pacing based on x-ratelimit-remaining-requests header
-            if rem_reqs is not None and rem_reqs < 10:
-                sleep_time = reset_sec if reset_sec and reset_sec > 0 else 2.0
-                print(f"   ⚠️ Rate limit remaining low ({rem_reqs}). Pacing for {sleep_time:.1f}s...")
-                time.sleep(sleep_time)
-            else:
-                time.sleep(0.3)
+            # Fixed 15s pacing to guarantee zero TPM (tokens-per-minute) throttling on Groq free-tier
+            print("   ⏳ Pacing 15s for TPM budget...")
+            time.sleep(15.0)
 
         except Exception as e:
             print(f"  ❌ Query {idx} error: {e}")

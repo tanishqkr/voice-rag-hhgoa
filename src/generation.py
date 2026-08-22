@@ -76,10 +76,11 @@ class GroqGenerator:
         t0 = time.time()
         client = Groq(api_key=self.api_key)
 
-        # Format context passages with explicit IDs for citation
+        # Limit context passages to top 3 to optimize prompt token size & generation latency
+        top_passages = retrieved_passages[:3]
         formatted_list = []
         citations = []
-        for p in retrieved_passages:
+        for p in top_passages:
             formatted_list.append(f"[{p.id}] {p.text}")
             citations.append(p.id)
 
