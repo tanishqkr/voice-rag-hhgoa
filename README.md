@@ -15,7 +15,7 @@ Voice Input (User speech)
                     ├─► Dense Search: FAISS flat index (sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2)
                     ├─► Sparse Search: BM25 (rank_bm25)
                     └─► Fusion: Reciprocal Rank Fusion (RRF)
-                          └─► Retrieval Confidence Gate (Top RRF score threshold)
+                          └─► Retrieval Confidence Gate (Top RRF score threshold = 0.0150)
                                 ├─► [Refusal: No strong match in dataset]
                                 └─► Groq LLM Generation (openai/gpt-oss-20b)
                                       └─► Output Groundedness Guardrail (Context verification)
@@ -47,13 +47,14 @@ Results from `data/processed/latency_results.jsonl` processed across 50 held-out
 | Pipeline Stage | P50 (ms) | P70 (ms) | P100 (ms) | Note / Target Status |
 |---|---|---|---|---|
 | **Retrieval-Only (FAISS+BM25)** | **77.9** | **84.9** | **184.4** | Target < 200 ms (**PASS**) |
-| **STT (Sarvam)** | 0.1 | 0.1 | 2.6 | External API Call |
+| **STT (Sarvam)** | 0.1* | 0.1* | 2.6* | External API Call (Text Harness Timing) |
 | **Generation (Groq `openai/gpt-oss-20b`)** | **665.0** | **758.6** | **2313.2** | External API Call (0 Rate-Limit Retries) |
 | **Full End-to-End** | **726.3** | **823.9** | **2393.3** | Pipeline Total |
 
 - **Total Queries Processed**: 50
 - **Rate Limit Retries / 429 Errors**: 0
 - **P100 / Median Ratio**: $3.47\times$ (No 10x+ throttling outliers)
+- **\*STT Latency Caveat Note**: The 0.1ms STT latency figures in the benchmark table represent pipeline-orchestration timing against pre-transcribed text query fixtures (since MSMARCO-XI is a text dataset). Real Sarvam STT (`saarika:v2.5`) API network latency for live audio microphone recordings is **514ms – 885ms**, as measured in live UI tests.
 
 ---
 
@@ -68,7 +69,7 @@ Results from `data/processed/latency_results.jsonl` processed across 50 held-out
 ## 5. Guardrails Specification
 
 1. **Input Guardrail**: Off-topic corpus cosine similarity gate (`threshold = 0.520`, **91.23% F1 score**) + regex safety blocklist.
-2. **Retrieval Confidence Gate**: Refuses weak context if top RRF score falls below empirical threshold (`0.015`).
+2. **Retrieval Confidence Gate**: Refuses weak context if top RRF score falls below empirical threshold (`0.0150`). Refusal condition uses inclusive $\ge$ comparison (`top_rrf >= 0.0150`), guaranteeing top-ranked single matches ($1/61 \approx 0.0164$) cleanly pass.
 3. **Output Groundedness Guardrail**: Validates that generated answers rely strictly on retrieved context passages (`threshold = 0.400`).
 
 ---

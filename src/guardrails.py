@@ -113,8 +113,8 @@ class GuardrailsEngine:
         )
 
     def check_retrieval_confidence(self, top_rrf_score: float) -> GuardrailVerdict:
-        """Retrieval Confidence Gate: Verifies top retrieved RRF score exceeds threshold."""
-        passed = top_rrf_score >= self.retrieval_conf_threshold
+        """Retrieval Confidence Gate: Verifies top retrieved RRF score meets or exceeds threshold."""
+        passed = top_rrf_score >= (self.retrieval_conf_threshold - 1e-6)
         reason = "Retrieval confidence sufficient." if passed else f"Low retrieval confidence (top RRF score {top_rrf_score:.4f} < threshold {self.retrieval_conf_threshold:.4f})"
         return GuardrailVerdict(
             passed=passed,

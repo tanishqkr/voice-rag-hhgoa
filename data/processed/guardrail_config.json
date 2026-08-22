@@ -1,0 +1,8 @@
+{
+  "input_cos_threshold": 0.52,
+  "retrieval_conf_threshold": 0.015,
+  "groundedness_sim_threshold": 0.4,
+  "calibration_samples": 50,
+  "in_domain_samples": 30,
+  "off_topic_samples": 20
+}
