@@ -46,7 +46,7 @@ class SarvamSTTClient:
         file_name: str = "audio.wav",
         language_code: str = "unknown"
     ) -> TranscriptionResult:
-        """Transcribes audio bytes using Sarvam STT API with retries."""
+        """Transcribes audio bytes using Sarvam STT API (saarika:v2.5) with retries."""
         api_key = self._get_active_api_key()
         if not api_key or api_key == "your_sarvam_api_key_here":
             raise ValueError("SARVAM_API_KEY is not configured in .env file.")
@@ -58,23 +58,34 @@ class SarvamSTTClient:
         files = {
             "file": (file_name, audio_bytes, "audio/wav")
         }
+
+        # Map language code to Sarvam format
+        if language_code.lower().startswith("hi"):
+            sarvam_lang = "hi-IN"
+        elif language_code.lower().startswith("en"):
+            sarvam_lang = "en-IN"
+        else:
+            sarvam_lang = "hi-IN"
+
         data = {
-            "model": "saaras:v1",
-            "language_code": language_code
+            "model": "saarika:v2.5",
+            "language_code": sarvam_lang
         }
 
-        response = requests.post(self.api_url, headers=headers, files=files, data=data, timeout=10)
+        response = requests.post(self.api_url, headers=headers, files=files, data=data, timeout=15)
         
-        # Don't retry client 4xx errors
-        if 400 <= response.status_code < 500:
-            response.raise_for_status()
+        # Raise clear HTTP error with body context
+        if response.status_code >= 400:
+            raise requests.exceptions.HTTPError(
+                f"Sarvam API Error ({response.status_code}): {response.text}",
+                response=response
+            )
 
-        response.raise_for_status()
         res_json = response.json()
         latency_ms = (time.time() - t0) * 1000.0
 
         transcript = res_json.get("transcript", "").strip()
-        detected_lang_raw = res_json.get("language_code", "hi-IN")
+        detected_lang_raw = res_json.get("language_code", sarvam_lang)
         
         # Standardize detected language to "hi" or "en"
         detected_lang = "hi" if "hi" in detected_lang_raw.lower() else "en"
