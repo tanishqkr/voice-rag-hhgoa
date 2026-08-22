@@ -5,6 +5,7 @@ and offline fixture mode for network-free testing.
 """
 
 import os
+import re
 import time
 from typing import List, Optional
 from pydantic import BaseModel
@@ -22,7 +23,7 @@ GROUNDED_PROMPT_TEMPLATE = """You are a grounded QA assistant. Your job is to an
 
 Rule 1: Answer strictly based on the provided context passages below. If the context does not contain enough information to answer the question, state: "I cannot answer this question based on the provided dataset."
 Rule 2: Cite the context source passage IDs (e.g. [hi_p_0] or [en_p_1]) inline where relevant.
-Rule 3: Keep the answer concise and direct (2-4 sentences max). Write the answer in the same language as the user query ({language}).
+Rule 3: Keep the answer concise and direct (2-4 sentences max). Write the answer in the same language as the user query ({language}). Do NOT output any thinking, reasoning, or meta-commentary. Output ONLY the answer text.
 
 Context Passages:
 {formatted_contexts}
@@ -74,19 +75,25 @@ class GroqGenerator:
         response = client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a helpful, factual, and strictly grounded multilingual assistant."},
+                {"role": "system", "content": "You are a concise factual QA model. Output ONLY the final answer without any thinking tags."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=256,
+            max_tokens=512,
             temperature=0.1
         )
 
         raw_answer = response.choices[0].message.content.strip()
         
-        # Clean potential reasoning tags if model emits them
-        if "<think>" in raw_answer and "</think>" in raw_answer:
-            answer = raw_answer.split("</think>")[-1].strip()
+        # Clean potential reasoning tags (handles both closed and unclosed <think> tags)
+        if "<think>" in raw_answer:
+            if "</think>" in raw_answer:
+                answer = raw_answer.split("</think>")[-1].strip()
+            else:
+                answer = re.sub(r'<think>.*', '', raw_answer, flags=re.DOTALL).strip()
         else:
+            answer = raw_answer
+
+        if not answer:
             answer = raw_answer
 
         latency_ms = (time.time() - t0) * 1000.0
