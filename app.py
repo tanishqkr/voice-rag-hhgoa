@@ -3,7 +3,7 @@ Streamlit Application for Voice-Enabled Multilingual RAG System.
 Features mic capture (st.audio_input), text fallback, live transcription,
 retrieved passages display with RRF/Dense/Sparse scores and language tags,
 grounded answer generation with citations, guardrail refusal state badges,
-and per-stage latency metrics.
+and light-theme visual hierarchy.
 """
 
 import os
@@ -27,59 +27,121 @@ st.set_page_config(
     layout="wide"
 )
 
-# Custom CSS for rich aesthetics
+# Custom CSS for modern light theme aesthetics
 st.markdown("""
 <style>
+    /* Section & Container Breathing Room */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 3rem;
+        max-width: 1100px;
+    }
+    
+    /* Header Typography */
     .main-header {
         font-size: 2.2rem;
-        font-weight: 700;
-        background: linear-gradient(90deg, #1E88E5, #43A047);
+        font-weight: 800;
+        background: linear-gradient(135deg, #4F46E5 0%, #06B6D4 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        margin-bottom: 0.2rem;
+        margin-bottom: 0.3rem;
+        letter-spacing: -0.02em;
     }
     .sub-header {
         font-size: 1.05rem;
-        color: #666;
-        margin-bottom: 1.5rem;
+        color: #475569;
+        margin-bottom: 1.8rem;
+        font-weight: 400;
     }
+    
+    /* Section Headings Hierarchy */
+    h3 {
+        font-weight: 700 !important;
+        font-size: 1.25rem !important;
+        color: #0F172A !important;
+        margin-top: 1.5rem !important;
+        margin-bottom: 0.8rem !important;
+    }
+    
+    /* Language Badges */
     .badge-hi {
-        background-color: #E8F5E9;
-        color: #2E7D32;
-        padding: 4px 10px;
-        border-radius: 12px;
+        background-color: #DCFCE7;
+        color: #15803D;
+        padding: 5px 12px;
+        border-radius: 16px;
         font-size: 0.85rem;
         font-weight: 600;
+        border: 1px solid #BBF7D0;
     }
     .badge-en {
-        background-color: #E3F2FD;
-        color: #1565C0;
-        padding: 4px 10px;
-        border-radius: 12px;
+        background-color: #E0E7FF;
+        color: #4338CA;
+        padding: 5px 12px;
+        border-radius: 16px;
         font-size: 0.85rem;
         font-weight: 600;
+        border: 1px solid #C7D2FE;
     }
+
+    /* Retrieved Passage Cards (Light Neutral Card) */
     .passage-card {
-        border-left: 4px solid #1E88E5;
-        background-color: #F8F9FA;
-        padding: 12px 16px;
-        border-radius: 4px;
-        margin-bottom: 10px;
+        border-left: 4px solid #4F46E5;
+        background-color: #FFFFFF;
+        border-top: 1px solid #E2E8F0;
+        border-right: 1px solid #E2E8F0;
+        border-bottom: 1px solid #E2E8F0;
+        padding: 16px 20px;
+        border-radius: 6px;
+        margin-bottom: 14px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
     }
+    .passage-card p {
+        color: #334155;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
+
+    /* Refusal Banner (Semantic Danger State) */
     .refusal-box {
-        border-left: 4px solid #E53935;
-        background-color: #FFEBEE;
-        padding: 14px 18px;
-        border-radius: 4px;
-        color: #C62828;
+        border-left: 4px solid #DC2626;
+        background-color: #FEF2F2;
+        border-top: 1px solid #FECACA;
+        border-right: 1px solid #FECACA;
+        border-bottom: 1px solid #FECACA;
+        padding: 18px 22px;
+        border-radius: 6px;
+        color: #991B1B;
         font-weight: 500;
+        margin-top: 1rem;
+        margin-bottom: 1rem;
     }
+
+    /* Grounded Answer Box (Visual Anchor Element) */
+    .grounded-answer-box {
+        border-left: 4px solid #4F46E5;
+        background-color: #EEF2FF;
+        border-top: 1px solid #C7D2FE;
+        border-right: 1px solid #C7D2FE;
+        border-bottom: 1px solid #C7D2FE;
+        padding: 20px 24px;
+        border-radius: 8px;
+        color: #1E1B4B;
+        font-size: 1.08rem;
+        line-height: 1.65;
+        font-weight: 500;
+        margin-top: 0.8rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 2px 8px rgba(79, 70, 229, 0.06);
+    }
+
     .latency-pill {
-        background-color: #ECEFF1;
-        color: #37474F;
-        padding: 2px 8px;
-        border-radius: 10px;
-        font-size: 0.8rem;
+        background-color: #F1F5F9;
+        color: #475569;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 0.78rem;
+        font-weight: 500;
+        border: 1px solid #E2E8F0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -190,29 +252,19 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
 
-        # 4. Grounded Answer
+        # 4. Grounded Answer (Visual Anchor Box)
         if pipeline_out.generation and not pipeline_out.refusal:
             st.markdown("### 🤖 Grounded Answer")
-            st.success(pipeline_out.generation.answer)
-            st.caption(f"Citations: {', '.join(pipeline_out.generation.citations)}")
+            st.markdown(f"""
+            <div class="grounded-answer-box">
+                {pipeline_out.generation.answer}
+            </div>
+            """, unsafe_allow_html=True)
+            st.caption(f"📌 Citations: {', '.join(pipeline_out.generation.citations)}")
 
-        # 5. Latency Metrics Breakdown
+        # 5. Benchmark Latency Caption Line
         st.divider()
-        st.markdown("### ⏱️ Per-Stage Latency Breakdown")
-        m1, m2, m3, m4 = st.columns(4)
-        
-        stt_ms = pipeline_out.stage_latencies.get("stt_ms", 0.0)
-        ret_ms = pipeline_out.stage_latencies.get("retrieval_ms", 0.0)
-        gen_ms = pipeline_out.stage_latencies.get("generation_ms", 0.0)
-        total_ms = pipeline_out.stage_latencies.get("total_e2e_ms", 0.0)
-        
-        if total_ms == 0.0:
-            total_ms = stt_ms + ret_ms + gen_ms
-
-        m1.metric("STT (Sarvam)", f"{stt_ms:.1f} ms")
-        m2.metric("Retrieval (FAISS+BM25)", f"{ret_ms:.1f} ms", help="Target: < 200 ms")
-        m3.metric("Generation (Groq)", f"{gen_ms:.1f} ms")
-        m4.metric("Total End-to-End", f"{total_ms:.1f} ms")
+        st.caption("⏱️ Full empirical latency benchmark (P50/P70/P100 across 50 queries) documented in [README.md](https://github.com/tanishqkr/voice-rag-hhgoa#3-empirical-latency-benchmark-summary-50-held-out-queries).")
 
 if __name__ == "__main__":
     main()
